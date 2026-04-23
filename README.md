@@ -2,6 +2,7 @@
 
 ## Table of Contents
 1. [Windows Logging for SOC](#windows-logging-for-soc)
+2. [Windows Threat Detection 1](#windows-threat-detection-1)
 
 ## Windows Logging for SOC
 ### What is Logged
@@ -229,3 +230,112 @@
     Get-Content C:\Users\thm.bob\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadline\ConsoleHost_history.txt
     ```
     The answer is `THM{it_was_me!}`.
+
+## Windows Threat Detection 1
+### Intro to Initial Access
+1. Which MITRE technique ID describes Initial Access via a vulnerable mail server?
+
+    The answer is `T1190`. This is `Exploit Public-Facing Application` technique.
+
+2. Which Initial Access method relies on a user opening a malicious email attachment?
+
+    The answer is `Phishing`.
+
+### Initial Access via RDP
+1. Which user seems to be most actively brute-forced by botnets?
+
+    We can filter the Security log by `Event ID` 4625, which describes a failed login, and look at the `Account Name` field to find which user is most actively brute-forced by botnets. We need to look at same user that have many failed logins in the short period of time. The answer is `Administrator`.
+
+2. Which IP managed to breach the host via RDP (Logon Type 10)?
+
+    We can filter the Security log by `Event ID` 4624, which describes a successful login, and filter by `Logon Type` 10 to find which IP managed to breach the host via RDP. 
+
+    ```xml
+    <QueryList>
+    <Query Id="0" Path="file://C:\Users\Administrator\Desktop\Practice\RDP Case\RDP-Security.evtx">
+        <Select Path="file://C:\Users\Administrator\Desktop\Practice\RDP Case\RDP-Security.evtx">
+        *[
+        System[(EventID=4624)]
+        and
+        EventData[Data[@Name='LogonType']='10']
+        ]</Select>
+    </Query>
+    </QueryList>
+    ```
+    The IP that managed to breach the host via RDP is `203.205.34.107`.
+
+3. Can you get the real Workstation Name (hostname) of the threat actor?
+
+    We can filter the Security log by `Event ID` 4624, which describes a successful login, and filter by `Logon Type` 3 to find the real Workstation Name (hostname) of the threat actor.
+
+    ```xml
+    <QueryList>
+    <Query Id="0" Path="file://C:\Users\Administrator\Desktop\Practice\RDP Case\RDP-Security.evtx">
+        <Select Path="file://C:\Users\Administrator\Desktop\Practice\RDP Case\RDP-Security.evtx">
+        *[
+        System[(EventID=4624)]
+        and
+        EventData[Data[@Name='LogonType']='3']
+        ]</Select>
+    </Query>
+    </QueryList>
+    ```
+    The real Workstation Name (hostname) of the threat actor is `DESKTOP-QNBC4UU`.
+
+### Initial Access via Phishing
+1. Let's play the role of the untrained user and mindlessly open the COM file. Run the www.skype.com file from the Phishing Case 1 folder, which flag do you get?
+
+    The flag that we get is `THM{misleading_extension}`.
+
+2. Continue with the second attachment from the Phishing Case 2 folder. From which URL does the malicious LNK download the next stage malware?
+
+    We can solve this by right-clicking the LNK file and click `properties`. Then, we can look at the `Target` field to find the URL that the malicious LNK download the next stage malware from. The answer is `http://wp16.hqywlqpa.thm:8000/cgi-bin/f`.
+
+3. Finally, move on to the Phishing Case 3 folder and review its content. What is the name of the double-extension file you see there?
+
+    The name of the double-extension file is `best-cat.jpg.exe`.
+
+### Continuing Phising Topic
+1. Which file did the user download via the web browser?
+
+    We can filter the Sysmon log by `Event ID` 11, which describes a file creation. The answer is `C:\Users\Administrator\Downloads\top-cats.zip`.
+
+2. In which folder did the user unarchive the suspicious file?
+
+    We can continue with the same filter and look at the `TargetFilename` field to find the folder that the user unarchive the suspicious file. The answer is `C:\Users\Administrator\Pictures`. The suspicious file is `C:\Users\Administrator\Pictures\best-cat.jpg.exe`, since it uses a double extension.
+
+3. What is the process ID of the launched phishing malware?
+
+    We can filter the Sysmon log by `Event ID` 1, which describes a process creation, and look at the `Image` field to find the process ID of the launched phishing malware. The answer is `5484` for `best-cat.jpg.exe`.
+
+4. Finally, which malicious domain did the malware try to connect to?
+
+    We can filter the Sysmon log by `Event ID` 3, which describes a network connection, and filter by the process ID of the launched phishing malware.
+
+    ```xml
+    <QueryList>
+    <Query Id="0" Path="file://C:\Users\Administrator\Desktop\Practice\Phishing Case 3\Phishing-Sysmon.evtx">
+        <Select Path="file://C:\Users\Administrator\Desktop\Practice\Phishing Case 3\Phishing-Sysmon.evtx">
+        *[
+        System[(EventID=22)]
+        and
+        EventData[Data[@Name='ProcessId']='5484']
+        ]</Select>
+    </Query>
+    </QueryList>
+    ```
+    The malicious domain that the malware try to connect to is `rjj.store`.
+
+### Initial Access via USB
+1. Which USB file was launched by the user?
+
+    We can filter the Sysmon log by `Event ID` 1, which describes a process creation, and look at the `Image` field to find which USB file was launched by the user. The answer is `E:\Open Sandisk 4GB USB.exe`.
+
+2. Which suspicious file did the malware drop to the disk?(Format: full path to the file, e.g. C:\file.txt)
+
+    Based on the previous question, the USB process has `ProcessId` 1108. We can filter the Sysmon log by `Event ID` 11, which describes a file creation, and filter by the `ProcessId` of the USB process. The answer is `C:\Users\Public\Documents\winupdate.exe`.
+
+3. To which other USB did the malware propagate?(Format: just the letter, e.g. X:)
+
+    We can filter the Sysmon log by `Event ID` 11, which describes a file creation, and look at the `TargetFilename` field to find the USB drive to which the malware propagated. The answer is `F:`.
+
