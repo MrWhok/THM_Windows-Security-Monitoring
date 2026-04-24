@@ -4,6 +4,7 @@
 1. [Windows Logging for SOC](#windows-logging-for-soc)
 2. [Windows Threat Detection 1](#windows-threat-detection-1)
 3. [Windows Threat Detection 2](#windows-threat-detection-2)
+4. [Windows Threat Detection 3](#windows-threat-detection-3)
 
 ## Windows Logging for SOC
 ### What is Logged
@@ -445,3 +446,121 @@
     ```
     The flag in the response is `THM{power_of_powershell}`.
 
+
+## Windows Threat Detection 3
+### Command and Control
+1. Which suspicious archive did the user download?
+
+    The answer is `URGENT!.zip`.
+
+2. Where did the attackers hide the C2 malware file?
+
+    When we filter the Sysmon log by that contain `ProcessId` or `ParentProcessId` of the archive file, we will find out that the malware call powershell to download `update.exe`. The downloaded file is stored in `C:\Users\Administrator\AppData\Roaming\update.exe`.
+
+3. What is the domain of the Command and Control server?
+
+    We can filter the Sysmon log by `Event ID` 22, which describes a DNS query, and filter by the `image` field that contain `update.exe` to find the domain of the Command and Control server, which is `route.m365officesync.workers.dev`.
+
+### Persistence Overview
+1. How many times did the threat actor fail to log in to the Administrator?
+
+    We can filter the Security log by `Event ID` 4625, which describes a failed login, and filter by the `TargetUserName` field that contain `Administrator` to find how many times did the threat actor fail to log in to the Administrator. 
+
+    ```xml
+    <QueryList>
+    <Query Id="0" Path="file://C:\Users\Administrator\Desktop\Practice\Task 3\Security.evtx">
+        <Select Path="file://C:\Users\Administrator\Desktop\Practice\Task 3\Security.evtx">
+    *[System[(EventID=4625)]
+    and
+    EventData[Data[@Name='TargetUserName']='Administrator']]
+    </Select>
+    </Query>
+    </QueryList>
+    ```
+    The threat actor fail to log in to the Administrator `6` times.
+
+2. After the successful login, which backdoor user did the attacker create?
+
+    We can filter the Security log by `Event ID` 4720, which describes a user account creation, and filter by the `SubjectUserName` field that contain `Administrator` to find which backdoor user did the attacker create.
+
+    ```xml
+    <QueryList>
+    <Query Id="0" Path="file://C:\Users\Administrator\Desktop\Practice\Task 3\Security.evtx">
+        <Select Path="file://C:\Users\Administrator\Desktop\Practice\Task 3\Security.evtx">
+    *[System[(EventID=4720)]
+    and
+    EventData[Data[@Name='SubjectUserName']='Administrator']]
+    </Select>
+    </Query>
+    </QueryList>
+    ```
+    The backdoor user that the attacker created is `support`.
+
+3. Which privileged group was the backdoor user added to?
+
+    We can filter the Security log by `Event ID` 4732, which describes a user being added to a group, and filter by the `SubjectUserName` field that contain `Administrator` to find which privileged group was the backdoor user added to.
+
+    ```xml
+    <QueryList>
+    <Query Id="0" Path="file://C:\Users\Administrator\Desktop\Practice\Task 3\Security.evtx">
+        <Select Path="file://C:\Users\Administrator\Desktop\Practice\Task 3\Security.evtx">
+    *[System[(EventID=4732)]
+    and
+    EventData[Data[@Name='SubjectUserName']='Administrator']
+    ]
+    </Select>
+    </Query>
+    </QueryList>
+    ```
+    The privileged group that the backdoor user was added to is `Administrators`.
+
+### Persistence Task and Services
+1. Which Windows service was created to persist the Nessie malware?
+
+    We can filter the Sysmon log by `Event ID` 4697, which describes a service creation, and look at the `Service File Name` that contain `Nessie` to find which Windows service was created to persist the Nessie malware. The answer is `Data Protection Service`.
+
+2. Which scheduled task was created to persist the Troy malware?
+
+    We can filter the Sysmon log by `Event ID` 4698, which describes a scheduled task creation, and look at the `Task Content` that contain `Troy` to find which scheduled task was created to persist the Troy malware. The answer is `AmazonSync`.
+
+3. What flag do you get after finding and running the Troy malware?
+
+    Based on previous questions, we can find the location of the Troy malware, which is `C:\Program Files\Common Files\troy.exe`. We can run the file and it will ask new question:
+
+    ```cmd
+    =========================================                                                                               
+    Not so fast! What was my parent commandline?                                                                            Example: C:\Windows\System32\os.exe -run                                                                                =========================================                                                                               
+    Your answer:                            
+    ```
+
+    This cmd question basically asking us, how did the troy malware get executed when the system is rebooted. We can find the answer by looking at the `Sysmon (After Reboot).evtx` log and filter by `Event ID` 1, which describes a process creation, and look at the `Image` field that contain `troy.exe` to find the `ParentCommandLine` field, which is the answer for the question. The answer for the cmd is  `C:\Windows\system32\svchost.exe -k netsvcs -p -s Schedule`. The flag that we get after finding and running the Troy malware is `THM{c2_is_on_schedule!}`.
+
+### Persistence: Run Keys and Startup
+1. What is the parent process image of the "Odin" malware?
+
+    We can filter the Sysmon log by `Event ID` 1, which describes a process creation, and look at the `Image` field that contain `Odin` to find the `ParentImage` field, which is the answer for the question. The parent process image of the "Odin" malware is `C:\Windows\explorer.exe`.
+
+2. What is the last line that the "Odin" malware outputs?
+
+    Based on the previous question, we can find the location of the Odin malware, which is `C:\Users\Administrator\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\odin.cmd`. We can run the file and it will output some lines of text. The last line that the "Odin" malware outputs is `Done doing bad stuff!`.
+
+3. What flag do you get after finding and running the "Kitten" malware?
+
+    We can filter the Sysmon log by `Event ID` 1, which describes a process creation, and look at the `Image` field that contain `Kitten` to find the location of the Kitten malware, which is `CC:\Users\Public\kitten.exe`. We can run the file and it will output some lines of text. It will also ask a question in the end:
+
+    ```cmd
+    ========================================= 
+    Not so fast! How is my Run key named?     
+    Example: WinUpdate                        
+    ========================================= 
+    ```
+    We can filter to `Event ID` 13, which describes a registry value set, and look at the `TargetObject` field that contain `Run` to find the name of the Run key, which is `Basket`. We can find it by analyze `Sysmon (Before Reboot).evtx`. The flag that we get after finding and running the "Kitten" malware is `THM{persisting_in_basket!}`.
+
+### Impact and Threat Detection Recap
+1. What is the biggest threat to most corporate Windows networks?
+
+    The biggest threat to most corporate Windows networks is `Ransomware`.
+
+2. At which stage is it best to detect and stop the attack (e.g. Exfiltration)?
+
+    It is best to detect and stop the attack at the `Initial Access` stage.
